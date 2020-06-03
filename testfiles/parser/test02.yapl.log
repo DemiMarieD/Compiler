@@ -1,0 +1,2 @@
+YAPL compilation: [test02] ERROR 2 (line 21, column 10)
+Lexical error at line 21, column 10.  Encountered: "~" (126), after : ""

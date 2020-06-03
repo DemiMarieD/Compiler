@@ -1,0 +1,5 @@
+YAPL compilation: [test06] ERROR 3 (line 7, column 10)
+Encountered " "(" "( "" at line 7, column 10.
+Was expecting:
+    <string> ...
+    

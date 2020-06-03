@@ -1,0 +1,16 @@
+- README CA4 -
+
+GROUP A:  Demi Dauerer, Fabio Ziegler, Rajkannya Patel
+
+Added/impl Files:
+    AttribImpl
+    *Type
+    RecordField
+    CodeGenImpl (Added but not in use, yet)
+
+Build file has been updated to "build.xml",
+    the version has been updated to Typecheck
+
+To run:
+    > ant run
+    > ant eval-all

@@ -1,0 +1,2 @@
+YAPL compilation: [test06] ERROR 27 (line 15, column 16)
+using procedure proc (not a function) in expression

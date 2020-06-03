@@ -1,0 +1,2 @@
+YAPL compilation: [test46] ERROR 39 (line 17, column 15)
+expression before ’.’ is not a record type

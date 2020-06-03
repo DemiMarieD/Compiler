@@ -1,0 +1,4 @@
+YAPL compilation: [] ERROR 10 (line 2, column 11)
+symbol 'void' already declared in current scope (as procedure)
+YAPL compilation: [test01] ERROR 24 (line 19, column 10)
+illegal operand types for binary operator -

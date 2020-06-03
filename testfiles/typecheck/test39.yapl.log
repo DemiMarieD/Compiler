@@ -1,0 +1,2 @@
+YAPL compilation: [test39] ERROR 20 (line 13, column 14)
+expression before ’[’ is not an array type

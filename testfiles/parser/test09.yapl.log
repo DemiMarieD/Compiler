@@ -1,0 +1,5 @@
+YAPL compilation: [test09] ERROR 3 (line 7, column 10)
+Encountered " <number> "10 "" at line 7, column 10.
+Was expecting:
+    "]" ...
+    

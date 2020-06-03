@@ -1,0 +1,5 @@
+YAPL compilation: [test08] ERROR 3 (line 7, column 3)
+Encountered "<EOF>" at line 7, column 3.
+Was expecting:
+    <ident> ...
+    

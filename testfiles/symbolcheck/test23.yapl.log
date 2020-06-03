@@ -1,0 +1,2 @@
+YAPL compilation: [test23] ERROR 12 (line 22, column 15)
+illegal use of procedure 'createMatrix'

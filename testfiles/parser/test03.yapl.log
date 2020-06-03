@@ -1,0 +1,5 @@
+YAPL compilation: [test03] ERROR 3 (line 7, column 15)
+Encountered " ":=" ":= "" at line 7, column 15.
+Was expecting:
+    "=" ...
+    

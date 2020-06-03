@@ -1,0 +1,2 @@
+YAPL compilation: [test12] ERROR 10 (line 11, column 16)
+symbol 'proc' already declared in current scope (as procedure)

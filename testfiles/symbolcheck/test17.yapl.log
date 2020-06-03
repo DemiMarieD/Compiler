@@ -1,0 +1,2 @@
+YAPL compilation: [test17] ERROR 12 (line 11, column 16)
+illegal use of constant 'len'

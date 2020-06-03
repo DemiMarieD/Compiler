@@ -1,0 +1,2 @@
+YAPL compilation: [test21] ERROR 12 (line 16, column 5)
+illegal use of constant 'writeln'

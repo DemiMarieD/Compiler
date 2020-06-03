@@ -1,0 +1,2 @@
+YAPL compilation: [test10] ERROR 10 (line 9, column 40)
+symbol 'm' already declared in current scope (as parameter)

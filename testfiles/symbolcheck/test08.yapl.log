@@ -1,0 +1,2 @@
+YAPL compilation: [test08] ERROR 10 (line 8, column 11)
+symbol 'k' already declared in current scope (as variable)

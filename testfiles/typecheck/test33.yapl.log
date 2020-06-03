@@ -1,0 +1,2 @@
+YAPL compilation: [test33] ERROR 37 (line 10, column 15)
+illegal return value in procedure proc (not a function)
