@@ -16,7 +16,7 @@ import yapl.interfaces.CompilerError;
 public class Parser implements ParserConstants {
 
     static String program = ""; //program name = identifier in Program production
-    static CodeGenImpl codegen = new CodeGenImpl();
+    static CodeGenImpl codegen;
     static SymboltableImpl symboletable = new SymboltableImpl();
     static CompilerMessage msg = new CompilerMessage(); //prints to System.er (is set to log file in main)
 
@@ -27,11 +27,16 @@ public class Parser implements ParserConstants {
         OutputStream logFile;
 
         try {
+            // Loading the given arguments
+            InputStream predefindeProceduresInput = new FileInputStream(args[0]);
+            InputStream codeInput = new FileInputStream(args[1]);
             PrintStream printStream = new PrintStream(args[2]); //args[2] is the log file
             System.setErr(printStream); //now it prints to the log file
+            OutputStream outStream = new FileOutputStream(args[3]); //args[3] is the output file where to write the code to
+            codegen = new CodeGenImpl(outStream);
 
             //** parse predefined Procedures ***
-            parser = new Parser(new java.io.FileInputStream(args[0])); //args[0] is location of predefinedProcedures
+            parser = new Parser(predefindeProceduresInput); //args[0] is location of predefinedProcedures
             try{
                 parser.PredefinedProcedures();
             }catch(ParseException pe){
@@ -43,15 +48,10 @@ public class Parser implements ParserConstants {
             }catch(YAPLException e){
                  msg.printError(e, program);
             }
-        }catch(java.io.FileNotFoundException e){
-            System.out.println ("Parser: Logfile or predefinded procedures were not found.");
-            return;
-        }
 
-        try{
             //** parse the program ***
             //parser = new Parser(new java.io.FileInputStream(args[1]));
-            parser.ReInit(new java.io.FileInputStream(args[1]));
+            parser.ReInit(codeInput);
             try{
                  parser.Program(); //call start production
                  msg.printOK(program);
@@ -68,7 +68,7 @@ public class Parser implements ParserConstants {
             }
 
         }catch(java.io.FileNotFoundException e){
-            System.out.println ("Parser: Input file was not found.");
+            System.out.println (e.toString());
             return;
         }
 

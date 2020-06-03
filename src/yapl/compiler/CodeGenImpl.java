@@ -6,9 +6,15 @@ import yapl.interfaces.CodeGen;
 import yapl.interfaces.Symbol;
 import yapl.lib.*;
 
+import java.io.OutputStream;
+
 public class CodeGenImpl implements CodeGen {
     private BackendMJ backend;
+    private OutputStream outputStream;
 
+    public CodeGenImpl(OutputStream outputStream){
+        this.outputStream = outputStream;
+    }
 
     @Override
     public String newLabel() {
