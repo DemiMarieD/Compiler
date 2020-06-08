@@ -12,7 +12,7 @@ public class AttribImpl implements Attrib {
     private Type type;
     private Boolean isConstant;
     private Boolean isReadonly;
-    private Boolean isGlobal;
+    private Boolean isGlobal = false;
     private int offset;
     private byte register;
 
@@ -48,6 +48,14 @@ public class AttribImpl implements Attrib {
 
     public AttribImpl(byte kind, Type type, Token t) {
         this.kind = kind;
+        switch(kind){
+            case Attrib.Constant:
+            case Symbol.Typename:
+                this.isConstant = false;
+                break;
+            default:
+                this.isConstant = true;
+        }
         this.type = type;
         this.token = t;
     }

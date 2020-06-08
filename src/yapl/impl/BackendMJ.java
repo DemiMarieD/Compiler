@@ -36,6 +36,36 @@ public class BackendMJ implements BackendBinSM {
     Integer currentStackAddress = 0; //changed on enter and needed for allocStack
     Integer framePointer = 0; //todo never changes (needed for offset calc)
 
+    //Constructor for backend implementing predefined procedures
+    public BackendMJ (){
+        //writeln()
+        int addr = allocStringConstant("\n");
+        enterProc("writeln", 0, false);
+        writeString(addr);
+        exitProc("writeln_end");
+
+        //writeInt()
+        enterProc("writeint", 1, false);
+        loadWord(MemoryRegion.STACK, paramOffset(0)); //get the first parameter
+        writeInteger();
+        exitProc("writeint_end");
+
+        //writeBool()
+        int addr_true = allocStringConstant("True");
+        int addr_false = allocStringConstant("False");
+        enterProc("writebool", 1, false);
+        loadWord(MemoryRegion.STACK, paramOffset(0)); //get the first parameter
+        branchIf(false, "L_false");
+        writeString(addr_true);
+        jump("writebool_end");
+        assignLabel("L_false");
+        writeString(addr_false);
+        exitProc("writebool_end");
+
+        //todo readln ?
+    }
+
+
 
     private byte[] intToByteArray(int integer, int arraySize){
         if(integer == 0){

@@ -12,7 +12,11 @@ public class ProcedureType extends Type{
     public ProcedureType(Type returnType, List<Type> parameters){
         this.returnType = returnType;
         this.parameters = parameters;
-        this.parameterCount = parameters.size();
+        if (parameters != null) {
+            this.parameterCount = parameters.size();
+        }else{
+            this.parameterCount = 0;
+        }
     }
 
     public Type getReturnType() {
@@ -21,6 +25,10 @@ public class ProcedureType extends Type{
 
     public List<Type> getParameters() {
         return parameters;
+    }
+
+    public int getParameterCount() {
+        return parameterCount;
     }
 
     @Override

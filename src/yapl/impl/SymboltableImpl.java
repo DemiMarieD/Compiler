@@ -169,7 +169,8 @@ public class SymboltableImpl implements yapl.interfaces.Symboltable {
             throw new YAPLException(CompilerError.SymbolExists, excistingSymbole);
 
         }
-
+        //if we are in a global scope the Symbols will be global
+        s.setGlobal(currentScope.isGlobal());
         // Add a new SymbolImpl to the current scope.
         currentScope.addSymbole(s);
         // Sets the global symbol property of the new symbol according to current scope.

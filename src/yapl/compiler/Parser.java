@@ -24,14 +24,15 @@ public class Parser implements ParserConstants {
     /** Main entry point. */
     public static void main(String args[]) throws IOException {
         Parser parser;
-        OutputStream logFile;
 
         try {
-            // Loading the given arguments
+            //** Loading the given arguments **
             InputStream predefindeProceduresInput = new FileInputStream(args[0]);
-            InputStream codeInput = new FileInputStream(args[1]);
+            InputStream programInput = new FileInputStream(args[1]);
+
             PrintStream printStream = new PrintStream(args[2]); //args[2] is the log file
             System.setErr(printStream); //now it prints to the log file
+
             OutputStream outStream = new FileOutputStream(args[3]); //args[3] is the output file where to write the code to
             codegen = new CodeGenImpl(outStream);
 
@@ -51,7 +52,7 @@ public class Parser implements ParserConstants {
 
             //** parse the program ***
             //parser = new Parser(new java.io.FileInputStream(args[1]));
-            parser.ReInit(codeInput);
+            parser.ReInit(programInput);
             try{
                  parser.Program(); //call start production
                  msg.printOK(program);
@@ -185,6 +186,8 @@ setProgramName(t.toString());
          s = symboletable.makeSymbol(t, Symbol.Program, null);
           // open scope of program global
          symboletable.openScopeWithParent(true, s);
+         s.setType(new ProcedureType(new VoidType(), null));
+         codegen.enterProc(s);
     label_2:
     while (true) {
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -220,7 +223,7 @@ symboletable.checkProgramEnd(t);
           //close scope of program
           symboletable.closeScope();
           symboletable.closeScope();        // closes scope of predefined procedures
-
+     codegen.exitProc(s);
     jj_consume_token(DOT);
     jj_consume_token(0);
 }
@@ -542,7 +545,7 @@ if( op != null && !(x.getType() instanceof IntType)){
           }
 
           if( op != null){
-            //x = codegen.op1(op, x);
+             x = codegen.op1(op, x);
           }
 
           {if ("" != null) return x;}
@@ -567,7 +570,7 @@ if( op != null && !(x.getType() instanceof IntType)){
       op = MulOp();
       y = UnaryExpr();
 expr_checkError(x, y, op);
-         //x = codegen.op2(x, op, y);
+         x = codegen.op2(x, op, y);
          x.setToken(y.getToken());
     }
 {if ("" != null) return x;}
@@ -591,7 +594,7 @@ expr_checkError(x, y, op);
       op = AddOp();
       y = MulExpr();
 expr_checkError(x, y, op);
-            //x = codegen.op2(x, op, y);
+            x = codegen.op2(x, op, y);
             x.setToken(y.getToken());
     }
 {if ("" != null) return x;}
@@ -600,6 +603,7 @@ expr_checkError(x, y, op);
 
   static final public Attrib RelExpr() throws ParseException, YAPLException {Attrib x, y; Token op = null;
     // first item       op          second item      calc result
+    
          x = AddExpr();
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case LESS:
@@ -609,7 +613,7 @@ expr_checkError(x, y, op);
       op = RelOp();
       y = AddExpr();
 expr_checkError(x, y, op);
-            //x = codegen.relOp(x, op, y);
+            x = codegen.relOp(x, op, y);
             x.setType(new BoolType());
             x.setToken(y.getToken());
       break;
@@ -630,7 +634,7 @@ expr_checkError(x, y, op);
       op = EqualOp();
       y = RelExpr();
 expr_checkError(x, y, op);
-        //x = codegen.relOp(x, op, y);
+          x = codegen.equalOp(x, op, y);
           x.setType(new BoolType());
           x.setToken(y.getToken());
       break;
@@ -659,7 +663,7 @@ expr_checkError(x, y, op);
       op = jj_consume_token(AND);
       y = EqualExpr();
 expr_checkError(x, y, op);
-        ///x = codegen.relOp(x, op, y);
+        x = codegen.relOp(x, op, y);
         x.setType(new BoolType());
         x.setToken(y.getToken());
     }
@@ -737,8 +741,8 @@ if(dim > 0){
         op = jj_consume_token(OR);
         y = CondAndExpr();
 expr_checkError(x, y, op);
-        //x = codegen.relOp(x, op, y);
-        x.setType(new BoolType());
+        x = codegen.relOp(x, op, y);
+        x.setType(new BoolType()); //not needed ? duplicated
         x.setToken(y.getToken());
       }
 {if ("" != null) return x;}
@@ -787,9 +791,8 @@ arguments = new ArrayList<Attrib>();
 List<Integer> kinds = Arrays.asList(Symbol.Procedure);
         symboletable.checkSymbolKind(t, kinds);
 
-        sym = symboletable.lookup(t.image); // 2. readint()
-        attr = new yapl.impl.AttribImpl(sym, t);   // readint
-
+        sym = symboletable.lookup(t.image);
+        attr = new yapl.impl.AttribImpl(sym, t);
     jj_consume_token(PAR_LEFT);
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case PLUS:
@@ -809,10 +812,10 @@ List<Integer> kinds = Arrays.asList(Symbol.Procedure);
       ;
     }
     t = jj_consume_token(PAR_RIGHT);
-ProcedureType procedure = (ProcedureType) sym.getType(); //proc()   / readint()
-        List<Type> parameters = procedure.getParameters(); // int a / empty
+ProcedureType procedure = (ProcedureType) sym.getType();
+        List<Type> parameters = procedure.getParameters();
 
-        if(parameters.size() > arguments.size()){   // 2. 0
+        if(parameters.size() > arguments.size()){
             {if (true) throw new YAPLException(CompilerError.TooFewArgs, t, sym.getName());}
         }
         for(int i=0; i<arguments.size(); i++){
@@ -820,8 +823,8 @@ ProcedureType procedure = (ProcedureType) sym.getType(); //proc()   / readint()
             if(i >= parameters.size()){
                 {if (true) throw new YAPLException(CompilerError.ArgNotApplicable, t2, i+1, sym.getName());}
             }
-            Type paraType = parameters.get(i); // int
-            Type argType = arguments.get(i).getType();  // int
+            Type paraType = parameters.get(i);
+            Type argType = arguments.get(i).getType();
             if(!paraType.isCompatible(argType)){
                  {if (true) throw new YAPLException(CompilerError.ArgNotApplicable, t2, i+1, sym.getName());}
             }
@@ -830,6 +833,14 @@ ProcedureType procedure = (ProcedureType) sym.getType(); //proc()   / readint()
         //procedure calc -> returns new attr of type = returntype
         attr.setType(procedure.getReturnType());
         attr.setToken(t); // the closing )
+
+        Attrib[] args = new Attrib[arguments.size()];
+        for(int i = 0; i < args.length; i++){
+            args[i] = arguments.get(i);
+        }
+        //list of arguments(attr) needs to be an array
+        codegen.callProc(sym, args);
+       // codegen.returnFromProc(sym, attr); //todo
 
         {if ("" != null) return attr;}
     throw new Error("Missing return statement in function");
@@ -858,8 +869,7 @@ List<Integer> kinds = Arrays.asList(Symbol.Variable, Symbol.Parameter);
 if(!(lValue.getType().isCompatible(rValue.getType()))){
              {if (true) throw new YAPLException(CompilerError.TypeMismatchAssign, t);}
          }
-        // codegen.assign(lValue, rValue);
-
+         codegen.assign(lValue, rValue);
 }
 
 // **************** STATMENTS
@@ -956,7 +966,7 @@ s.setReturnSeen(true);
   static final public void WriteStatement(Symbol s) throws ParseException, YAPLException {Token t;
     jj_consume_token(WRITE);
     t = jj_consume_token(string);
-
+codegen.writeString(t.image);
 }
 
   static final public void Statement(Symbol s) throws ParseException, YAPLException {Token t;
@@ -1132,6 +1142,9 @@ void ConstDecl() throws ParseException, YAPLException {Token t; Type type; Attri
 type = attr.getType();
     jj_consume_token(SEMICOLON);
 Symbol sym = symboletable.makeSymbol(t, Symbol.Constant, type);
+        codegen.allocVariable(sym);
+        Attrib lattr = new AttribImpl(sym, t);
+        codegen.assign(lattr, attr);
 }
 
   static final public List<Symbol> VarDecl() throws ParseException, YAPLException {Token t; Type type; List<Symbol> varSymbols;
@@ -1140,7 +1153,7 @@ varSymbols = new ArrayList<Symbol>();
     t = jj_consume_token(ident);
 // make symbol of kind variable with name <ident>
          Symbol sym = symboletable.makeSymbol(t, Symbol.Variable, type);
-        // codegen.allocVariable(sym);
+         codegen.allocVariable(sym);
          varSymbols.add(sym);
     label_11:
     while (true) {
@@ -1157,8 +1170,8 @@ varSymbols = new ArrayList<Symbol>();
       t = jj_consume_token(ident);
 // make symbol of kind variable with name <ident>
                 Symbol sym2 = symboletable.makeSymbol(t, Symbol.Variable, type);
-               /// codegen.allocVariable(sym2);
-                 varSymbols.add(sym2);
+                codegen.allocVariable(sym2);
+                varSymbols.add(sym2);
     }
     jj_consume_token(SEMICOLON);
 {if ("" != null) return varSymbols;}
@@ -1332,15 +1345,28 @@ symboletable.checkProcedureEnd(t);
     finally { jj_save(2, xla); }
   }
 
-  static private boolean jj_3R_20()
+  static private boolean jj_3R_18()
  {
-    if (jj_scan_token(BRACKET_LEFT)) return true;
+    if (jj_3R_19()) return true;
+    return false;
+  }
+
+  static private boolean jj_3R_17()
+ {
+    if (jj_scan_token(CONST)) return true;
+    if (jj_scan_token(ident)) return true;
     return false;
   }
 
   static private boolean jj_3_3()
  {
     if (jj_3R_17()) return true;
+    return false;
+  }
+
+  static private boolean jj_3R_21()
+ {
+    if (jj_scan_token(DOT)) return true;
     return false;
   }
 
@@ -1360,6 +1386,18 @@ symboletable.checkProcedureEnd(t);
     return false;
   }
 
+  static private boolean jj_3_1()
+ {
+    if (jj_3R_15()) return true;
+    return false;
+  }
+
+  static private boolean jj_3R_20()
+ {
+    if (jj_scan_token(BRACKET_LEFT)) return true;
+    return false;
+  }
+
   static private boolean jj_3R_15()
  {
     if (jj_scan_token(ident)) return true;
@@ -1374,31 +1412,6 @@ symboletable.checkProcedureEnd(t);
     if (!jj_3R_20()) return false;
     jj_scanpos = xsp;
     if (jj_3R_21()) return true;
-    return false;
-  }
-
-  static private boolean jj_3R_21()
- {
-    if (jj_scan_token(DOT)) return true;
-    return false;
-  }
-
-  static private boolean jj_3R_17()
- {
-    if (jj_scan_token(CONST)) return true;
-    if (jj_scan_token(ident)) return true;
-    return false;
-  }
-
-  static private boolean jj_3R_18()
- {
-    if (jj_3R_19()) return true;
-    return false;
-  }
-
-  static private boolean jj_3_1()
- {
-    if (jj_3R_15()) return true;
     return false;
   }
 

@@ -248,6 +248,8 @@ void Program() throws YAPLException: { Token t; Symbol s;}
          s = symboletable.makeSymbol(t, Symbol.Program, null);
           // open scope of program global
          symboletable.openScopeWithParent(true, s);
+         s.setType(new ProcedureType(new VoidType(), null));
+         codegen.enterProc(s);
     }
 
     (Decl() | Procedure())*  // this part is global
@@ -264,7 +266,9 @@ void Program() throws YAPLException: { Token t; Symbol s;}
           //close scope of program
           symboletable.closeScope();
           symboletable.closeScope();        // closes scope of predefined procedures
-    } "." <EOF>
+     codegen.exitProc(s); } "." <EOF>
+
+
 }
 
 
@@ -442,7 +446,7 @@ Attrib UnaryExpr () throws YAPLException: {Attrib x; Token op = null;}
           }
 
           if( op != null){
-            //x = codegen.op1(op, x);
+             x = codegen.op1(op, x);
           }
 
           return x;
@@ -453,7 +457,7 @@ Attrib MulExpr () throws YAPLException: {Attrib x, y; Token op = null;}
 {
      x = UnaryExpr() ( op = MulOp() y = UnaryExpr() {
          expr_checkError(x, y, op);
-         //x = codegen.op2(x, op, y);
+         x = codegen.op2(x, op, y);
          x.setToken(y.getToken());
      } )*
               {return x;}
@@ -461,9 +465,10 @@ Attrib MulExpr () throws YAPLException: {Attrib x, y; Token op = null;}
 
 Attrib AddExpr () throws YAPLException: {Attrib x, y; Token op = null;}
 {
+
      x = MulExpr() ( op = AddOp() y = MulExpr() {
             expr_checkError(x, y, op);
-            //x = codegen.op2(x, op, y);
+            x = codegen.op2(x, op, y);
             x.setToken(y.getToken());
             } )*
       {return x;}
@@ -472,9 +477,10 @@ Attrib AddExpr () throws YAPLException: {Attrib x, y; Token op = null;}
 Attrib RelExpr () throws YAPLException: { Attrib x, y; Token op = null;}
 {
     // first item       op          second item      calc result
+
      x = AddExpr() [ op = RelOp()  y = AddExpr() {
             expr_checkError(x, y, op);
-            //x = codegen.relOp(x, op, y);
+            x = codegen.relOp(x, op, y);
             x.setType(new BoolType());
             x.setToken(y.getToken());
             }]
@@ -486,7 +492,7 @@ Attrib EqualExpr () throws YAPLException: {Attrib x, y; Token op = null;}
 {
      x = RelExpr() [ op = EqualOp() y = RelExpr() {
           expr_checkError(x, y, op);
-        //x = codegen.relOp(x, op, y);
+          x = codegen.equalOp(x, op, y);
           x.setType(new BoolType());
           x.setToken(y.getToken());
         }]
@@ -495,9 +501,9 @@ Attrib EqualExpr () throws YAPLException: {Attrib x, y; Token op = null;}
 
 Attrib CondAndExpr () throws YAPLException: {Attrib x, y; Token op = null;}
 {
-	x= EqualExpr() ( op = <AND> y= EqualExpr() {
+	x = EqualExpr() ( op = <AND> y = EqualExpr() {
         expr_checkError(x, y, op);
-        ///x = codegen.relOp(x, op, y);
+        x = codegen.relOp(x, op, y);
         x.setType(new BoolType());
         x.setToken(y.getToken());
         })*
@@ -544,8 +550,8 @@ Attrib Expr () throws YAPLException: { Attrib x, y; Token op = null; }
 {
 	x = CondAndExpr() ( op =<OR> y= CondAndExpr() {
         expr_checkError(x, y, op);
-        //x = codegen.relOp(x, op, y);
-        x.setType(new BoolType());
+        x = codegen.relOp(x, op, y);
+        x.setType(new BoolType()); //not needed ? duplicated
         x.setToken(y.getToken());
         } )*
      {return x;}
@@ -570,17 +576,17 @@ Attrib ProcedureCall () throws YAPLException: { Token t; Attrib attr; Symbol sym
         List<Integer> kinds = Arrays.asList(Symbol.Procedure);
         symboletable.checkSymbolKind(t, kinds);
 
-        sym = symboletable.lookup(t.image); // 2. readint()
-        attr = new yapl.impl.AttribImpl(sym, t);   // readint
+        sym = symboletable.lookup(t.image);
+        attr = new yapl.impl.AttribImpl(sym, t);
 
-    } <PAR_LEFT> [ arguments = ArgumentList() ] t = <PAR_RIGHT>     // argument = readint() / none
+    } <PAR_LEFT> [ arguments = ArgumentList() ] t = <PAR_RIGHT>
 
     {
 
-        ProcedureType procedure = (ProcedureType) sym.getType(); //proc()   / readint()
-        List<Type> parameters = procedure.getParameters(); // int a / empty
+        ProcedureType procedure = (ProcedureType) sym.getType();
+        List<Type> parameters = procedure.getParameters();
 
-        if(parameters.size() > arguments.size()){   // 2. 0
+        if(parameters.size() > arguments.size()){
             throw new YAPLException(CompilerError.TooFewArgs, t, sym.getName());
         }
         for(int i=0; i<arguments.size(); i++){
@@ -588,8 +594,8 @@ Attrib ProcedureCall () throws YAPLException: { Token t; Attrib attr; Symbol sym
             if(i >= parameters.size()){
                 throw new YAPLException(CompilerError.ArgNotApplicable, t2, i+1, sym.getName());
             }
-            Type paraType = parameters.get(i); // int
-            Type argType = arguments.get(i).getType();  // int
+            Type paraType = parameters.get(i);
+            Type argType = arguments.get(i).getType();
             if(!paraType.isCompatible(argType)){
                  throw new YAPLException(CompilerError.ArgNotApplicable, t2, i+1, sym.getName());
             }
@@ -598,6 +604,14 @@ Attrib ProcedureCall () throws YAPLException: { Token t; Attrib attr; Symbol sym
         //procedure calc -> returns new attr of type = returntype
         attr.setType(procedure.getReturnType());
         attr.setToken(t); // the closing )
+
+        Attrib[] args = new Attrib[arguments.size()];
+        for(int i = 0; i < args.length; i++){
+            args[i] = arguments.get(i);
+        }
+        //list of arguments(attr) needs to be an array
+        codegen.callProc(sym, args);
+       // codegen.returnFromProc(sym, attr); //todo
 
         return attr;} // readInt() -> int
 }
@@ -623,7 +637,7 @@ void Assignment () throws YAPLException: { Token t; Attrib rValue, lValue; Type 
          if(!(lValue.getType().isCompatible(rValue.getType()))){
              throw new YAPLException(CompilerError.TypeMismatchAssign, t);
          }
-        // codegen.assign(lValue, rValue);
+         codegen.assign(lValue, rValue);
      }
 }
 
@@ -703,8 +717,7 @@ void ReturnStatement (Symbol s) throws YAPLException: { Attrib attr = null; Toke
 
 void WriteStatement (Symbol s) throws YAPLException: { Token t;}
 {
-	<WRITE> t = <string> { //codegen.writeString(t.image);
-                        }
+	<WRITE> t = <string> {  codegen.writeString(t.image); }
 }
 
 void Statement (Symbol s) throws YAPLException: {Token t;}
@@ -776,8 +789,12 @@ Type ReturnType () throws YAPLException: { Type type;}
 void ConstDecl () throws YAPLException: { Token t; Type type; Attrib attr;}
 {
 	 <CONST> t = <ident>  <IS> attr = Literal() { type = attr.getType();} <SEMICOLON>
-	 { Symbol sym = symboletable.makeSymbol(t, Symbol.Constant, type);}
-       //todo maybe alloc smth
+	 {  Symbol sym = symboletable.makeSymbol(t, Symbol.Constant, type);
+        codegen.allocVariable(sym);
+        Attrib lattr = new AttribImpl(sym, t);
+        codegen.assign(lattr, attr);
+     }
+
 }
 
 
@@ -788,15 +805,17 @@ List<Symbol> VarDecl () throws YAPLException: { Token t; Type type; List<Symbol>
 	(t = <ident>){
          // make symbol of kind variable with name <ident>
          Symbol sym = symboletable.makeSymbol(t, Symbol.Variable, type);
-        // codegen.allocVariable(sym);
+         codegen.allocVariable(sym);
          varSymbols.add(sym);
+
+
     }
 	( <COMMA>
 	        (t = <ident>){
                 // make symbol of kind variable with name <ident>
                 Symbol sym2 = symboletable.makeSymbol(t, Symbol.Variable, type);
-               /// codegen.allocVariable(sym2);
-                 varSymbols.add(sym2);
+                codegen.allocVariable(sym2);
+                varSymbols.add(sym2);
             }
 
         )* <SEMICOLON>
