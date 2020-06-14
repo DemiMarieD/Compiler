@@ -218,7 +218,7 @@ void PredefinedProcedures() throws YAPLException: {}
 }
 
 void ProcedureHead() throws YAPLException:
-{ Token t, id; Type returntype; List<Type> parameters; }
+{ Token t, id; Type returntype; List<Symbol> parameters; }
 {
     // [ public void writeint ([ int a]);
     {parameters = new ArrayList<>();}
@@ -266,7 +266,7 @@ void Program() throws YAPLException: { Token t; Symbol s;}
           //close scope of program
           symboletable.closeScope();
           symboletable.closeScope();        // closes scope of predefined procedures
-     codegen.exitProc(s); } "." <EOF>
+          codegen.exitProc(s); } "." <EOF>
 
 
 }
@@ -591,7 +591,7 @@ Attrib ProcedureCall () throws YAPLException: { Token t; Attrib attr; Symbol sym
     {
 
         ProcedureType procedure = (ProcedureType) sym.getType();
-        List<Type> parameters = procedure.getParameters();
+        List<Symbol> parameters = procedure.getParameters();
 
         if(parameters.size() > arguments.size()){
             throw new YAPLException(CompilerError.TooFewArgs, t, sym.getName());
@@ -601,29 +601,35 @@ Attrib ProcedureCall () throws YAPLException: { Token t; Attrib attr; Symbol sym
             if(i >= parameters.size()){
                 throw new YAPLException(CompilerError.ArgNotApplicable, t2, i+1, sym.getName());
             }
-            Type paraType = parameters.get(i);
+            Type paraType = parameters.get(i).getType();
             Type argType = arguments.get(i).getType();
             if(!paraType.isCompatible(argType)){
                  throw new YAPLException(CompilerError.ArgNotApplicable, t2, i+1, sym.getName());
             }
         }
 
+        Attrib[] args = new Attrib[arguments.size()];
+        for(int i = 0; i < args.length; i++){
+            Attrib arg =  arguments.get(i);
+           // Attrib arg2 = new AttribImpl(parameters.get(i));
+            args[i] = arg;
+        }
+        //list of arguments(attr) needs to be an array
+        codegen.callProc(sym, args);
+
+        if(!(procedure.getReturnType() instanceof VoidType)){
+          // codegen.returnFromProc(sym, attr);
+        }
         //procedure calc -> returns new attr of type = returntype
         attr.setType(procedure.getReturnType());
         attr.setToken(t); // the closing )
 
-        Attrib[] args = new Attrib[arguments.size()];
-        for(int i = 0; i < args.length; i++){
-            args[i] = arguments.get(i);
-        }
-        //list of arguments(attr) needs to be an array
-        codegen.callProc(sym, args);
-        // codegen.returnFromProc(sym, attr);
 
-        return attr;} // readInt() -> int
+        return attr;
+    }
 }
 
-// int a = 5 + 2
+
 void Assignment () throws YAPLException: { Token t; Attrib rValue, lValue; Type type;}
 {
   // check if identifyer is in symboletable of type variable or parameter
@@ -636,10 +642,8 @@ void Assignment () throws YAPLException: { Token t; Attrib rValue, lValue; Type 
 
     } [  lValue = Selector(lValue) ]
 
-    t =  <ASSIGN>
-     rValue = Expr()        // = attribut of value 7
-
-     // assign 'a' the value of 7
+     t =  <ASSIGN>
+     rValue = Expr()
      {
          if(!(lValue.getType().isCompatible(rValue.getType()))){
              throw new YAPLException(CompilerError.TypeMismatchAssign, t);
@@ -667,6 +671,7 @@ void IfStatement (Symbol s) throws YAPLException: { Attrib cond; Token t;}
                                 codegen.assignLabel(elseLabel);
                             }
 	[ <ELSE> StatementList(s) ]
+
 	<ENDIF> { codegen.assignLabel(endLabel); }
 }
 
@@ -716,7 +721,8 @@ void ReturnStatement (Symbol s) throws YAPLException: { Attrib attr = null; Toke
                 }
             }
         }
-
+        //todo whet when return early
+        codegen.returnFromProc(s, attr);
 	 }
 }
 
@@ -738,7 +744,9 @@ void StatementList (Symbol s) throws YAPLException: {}
 
 Token Block (Symbol s) throws YAPLException: { Token t; }       //token is just to give the right error possition
 {
-    {symboletable.openScope(false);}
+    {
+        symboletable.openScope(false);
+    }
 
 	[ Decl() ]	<BEGIN> StatementList(s) t= <END>
 
@@ -814,14 +822,11 @@ List<Symbol> VarDecl () throws YAPLException: { Token t; Type type; List<Symbol>
          Symbol sym = symboletable.makeSymbol(t, Symbol.Variable, type);
          codegen.allocVariable(sym);
          varSymbols.add(sym);
-
-
     }
 	( <COMMA>
 	        (t = <ident>){
                 // make symbol of kind variable with name <ident>
                 Symbol sym2 = symboletable.makeSymbol(t, Symbol.Variable, type);
-
                 codegen.allocVariable(sym2);
                 varSymbols.add(sym2);
             }
@@ -858,54 +863,74 @@ void Decl () throws YAPLException: {}
 	 <DECL> (LOOKAHEAD(2) ConstDecl() |   VarDecl() | TypeDecl() )*
 }
 
-Type FormalParam () throws YAPLException: { Token t; Type type;}
+Symbol FormalParam () throws YAPLException: { Token t; Type type; Symbol sym;}
 {
     type = Type()
     (t = <ident>){
             // make symbol of kind parameter with name <ident>
-            symboletable.makeSymbol(t, Symbol.Parameter, type);
-            return type;
+            sym = symboletable.makeSymbol(t, Symbol.Parameter, type);
+
+            return sym;
            }
 }
 
-List<Type> FormalParamList () throws YAPLException: { List<Type> parameters; Type type;}
+List<Symbol> FormalParamList () throws YAPLException: { List<Symbol> parameters; Symbol sym;}
 {
-    {parameters = new ArrayList<Type>();}
-	type = FormalParam() {parameters.add(type);}
-	( <COMMA>  type = FormalParam() {parameters.add(type);} )*
-	{return parameters;}
+    {parameters = new ArrayList<Symbol>();}
+	sym = FormalParam() {parameters.add(sym);}
+	( <COMMA>  sym = FormalParam() {parameters.add(sym);} )*
+	{
+        for(int i = 0; i< parameters.size(); i++){
+           parameters.get(i).setOffset(i);
+        }
+        return parameters;
+    }
 }
 
-void Procedure () throws YAPLException: { Token t; Type type, procedureType; List<Type> parameters; Symbol s;}
+void Procedure () throws YAPLException: { Token t; Type type, procedureType; List<Symbol> parameters; Symbol s; String label;}
 {
-    {parameters = new ArrayList<Type>();}
+    {parameters = new ArrayList<Symbol>();}
      <PROCEDURE> type = ReturnType()
      (t = <ident>){
-     	    // make symbol of kind procedure with name <ident>
+            //make lable and jump so that code will not be executed before its called.
+            label = codegen.newLabel();
+            codegen.jump(label);
+
+            // make symbol of kind procedure with name <ident>
      	    // scope of procedure is nested in the scope of the program (global)
-     	    s = symboletable.makeSymbol(t, Symbol.Procedure, null);      // public int write(){}                                                        // int a = write()
+     	    s = symboletable.makeSymbol(t, Symbol.Procedure, null);
+
      	    // open scope of procedure
      	    symboletable.openScopeWithParent(false, s);
+
      }
 
      // open / close scope formal Parameters
      <PAR_LEFT> {symboletable.openScope(false);}
-     [ parameters = FormalParamList() ] { procedureType = new ProcedureType(type, parameters); s.setType(procedureType);}
+     [ parameters = FormalParamList() ] {
 
-     <PAR_RIGHT>  t = Block(s) {
-                            ProcedureType proType = (ProcedureType) s.getType();
-                              // error if not a void and now return seen.
-                              if( (!(proType.getReturnType() instanceof VoidType)) && (!s.getReturnSeen())){
-                                  throw new YAPLException(CompilerError.MissingReturn, t, s.getName());
-                              }
+                    procedureType = new ProcedureType(type, parameters);
+                    s.setType(procedureType);
+                    codegen.enterProc(s);
 
-                            symboletable.closeScope();}
+                    } <PAR_RIGHT>
+
+    //Start of Procedure Content
+    t = Block(s) {
+                    ProcedureType proType = (ProcedureType) s.getType();
+                      // error if not a void and now return seen.
+                      if( (!(proType.getReturnType() instanceof VoidType)) && (!s.getReturnSeen())){
+                          throw new YAPLException(CompilerError.MissingReturn, t, s.getName());
+                      }
+
+                    symboletable.closeScope();}
 
      // The identiﬁer denoting the end  must be equal to the procedure name.
       (t = <ident>){
-
             symboletable.checkProcedureEnd(t);
             symboletable.closeScope();
+            codegen.exitProc(s);
+            codegen.assignLabel(label);
       } <SEMICOLON>
 }
 

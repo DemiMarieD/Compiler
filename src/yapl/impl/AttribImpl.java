@@ -35,6 +35,10 @@ public class AttribImpl implements Attrib {
                 this.kind = Attrib.Constant;
                 this.isConstant = false;
                 break;
+            case Symbol.Parameter:
+                this.kind = Attrib.RegAddress;
+                this.isConstant = false;
+                break;
             default:
                 this.isConstant = false;
                // throw new YAPLException(CompilerError.Internal, t);

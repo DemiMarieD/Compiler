@@ -1,1 +1,6 @@
--- error reading file C:\Users\demi-\Documents\AAU_MasterInfo\20SS\CompilerConstruction_PR\CA5\Compiler\testfiles\codegen/test18.mj
+--- Start test18 ---
+printArray: ( 3 2 1 )
+printArray: ( 4 3 2 1 )
+printArray: ( 3 2 1 )
+printArray: ( )
+--- End test18 ---

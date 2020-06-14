@@ -1,1 +1,3 @@
--- error reading file C:\Users\demi-\Documents\AAU_MasterInfo\20SS\CompilerConstruction_PR\CA5\Compiler\testfiles\codegen/test15.mj
+--- Start test15 ---
+16 25 36 49  (16 25 36 49 expected)
+--- End test15 ---

@@ -1,1 +1,4 @@
--- error reading file C:\Users\demi-\Documents\AAU_MasterInfo\20SS\CompilerConstruction_PR\CA5\Compiler\testfiles\codegen/test14.mj
+--- Start test14 ---
+initArray: printArray: ( 5 4 3 2 1 )
+printArray: ( 5 4 3 2 1 )
+--- End test14 ---

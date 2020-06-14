@@ -159,6 +159,7 @@ public class CodeGenImpl implements CodeGen {
 
     }
 
+
     @Override
     public void setFieldOffsets(RecordType record) {
 
@@ -195,6 +196,7 @@ public class CodeGenImpl implements CodeGen {
     public void setParamOffset(Symbol sym, int pos) {
 
     }
+
 
     @Override
     public void arrayOffset(Attrib arr, Attrib index) throws YAPLException {
@@ -346,9 +348,10 @@ public class CodeGenImpl implements CodeGen {
     @Override
     public void enterProc(Symbol proc) throws YAPLException {
         int argumentsNum = ((ProcedureType) proc.getType()).getParameterCount();
-        boolean main = proc.getKind() == Symbol.Program; //if procedure is program then its main
+        boolean main = (proc.getKind() == Symbol.Program); //if procedure is program then its main
         backend.enterProc(proc.getName(), argumentsNum, main);
     }
+
 
     @Override
     public void exitProc(Symbol proc) throws YAPLException {
@@ -365,18 +368,21 @@ public class CodeGenImpl implements CodeGen {
 
     @Override
     public void returnFromProc(Symbol proc, Attrib returnVal) throws YAPLException {
-           //exit ?
+        backend.jump(proc.getName() + "_end");
+        //check up of return done in Parser
+        //exitProc(proc);
     }
 
     @Override
     public Attrib callProc(Symbol proc, Attrib[] args) throws YAPLException {
         if(args.length > 0) {
             for (Attrib a : args) {
+                System.out.println("Loading: " + a.getOffset());
                 loadValue(a);  //load arguments on top of stack
             }
         }
         backend.callProc(proc.getName());
-       // Attrib attr = new AttribImpl(proc) //todo create attribute, need token
+       // Attrib attr = new AttribImpl(proc) //todo create attribute, need token -> is done in Parser
         return null;
     }
 

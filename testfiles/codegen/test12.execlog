@@ -1,1 +1,5 @@
--- error reading file testfiles/codegen/test12.mj
+--- Start test12 ---
+printGlobal: m = 5 (5 expected)
+printLocal: m = 100 (100 expected)
+printGlobal: m = 10 (10 expected)
+--- End test12 ---

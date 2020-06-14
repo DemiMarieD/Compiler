@@ -6,10 +6,7 @@ import yapl.interfaces.MemoryRegion;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class BackendMJ implements BackendBinSM {
 
@@ -18,6 +15,8 @@ public class BackendMJ implements BackendBinSM {
 
     //String = label, Integer = Address of the label -> needed for jumps / backpatching
     Map<String, Integer> labels = new HashMap<>();
+    Map<String, Integer> procedureFrameSizes = new HashMap<>();
+    Stack<String> procedureStack = new Stack<String>();
 
     //Each Command in the list (code) represents one byte in the output-file (in the code section)
     //except for Commands initialized with label (they are normally addresses and have two bytes)
@@ -34,6 +33,8 @@ public class BackendMJ implements BackendBinSM {
     //help array for allocating arrays assume max dim = 5
     Integer addressHelpArray;
     Integer arrayDimCounter = 0;
+
+
 
     //todo understand
     Integer currentStackAddress = 0; //changed on enter and needed for allocStack
@@ -137,6 +138,13 @@ public class BackendMJ implements BackendBinSM {
         for (Command command : code){
             if(command.getCodeIsSet()){
                 outStream.write(command.getByteCode());
+
+            }else if(command.getLabel().contains("_framesize")){
+                String lable = command.getLabel();
+                String proc = lable.split("_")[0];
+                int framesize = procedureFrameSizes.get(proc);
+                System.out.println(proc +" framesize is: " + framesize);
+                outStream.write(framesize);
             }else {
                 int addr = labels.get(command.getLabel());
                 if(command.getAddressSize() == 2){
@@ -183,13 +191,7 @@ public class BackendMJ implements BackendBinSM {
         return addr;
     }
 
-    @Override
-    public int allocStack(int words) {
-        int addr =  currentStackAddress;
-        //needed??
-        currentStackAddress = currentStackAddress+words;
-        return addr;
-    }
+
 
     @Override
     public void allocHeap(int words) {
@@ -217,17 +219,18 @@ public class BackendMJ implements BackendBinSM {
     public void allocArray() {
         //todo for multiple dimensions
         //load help array / auxiliary array descriptor
-       /* for (int i = 0; i < arrayDimCounter-1; i++) {
+        for (int i = 0; i < arrayDimCounter-1; i++) {
+            //todo allocArray(..)
             loadWord(MemoryRegion.STATIC, addressHelpArray + (i)); //load length of the dimension on the stack
         }
         //add all the lengths that have been just loaded to get the total size of the array
         for (int i = 0; i < arrayDimCounter-2; i++) {
             add();
         }
-        arrayDimCounter = 0;*/
+        arrayDimCounter = 0;
 
         //for 1D array
-        loadWord(MemoryRegion.STATIC, addressHelpArray + 0);
+        //loadWord(MemoryRegion.STATIC, addressHelpArray + 0);
 
         //newarray
         //allocate array with t0 elements of given type on the heap (type = 0: boolean, type ≠ 0: integer)
@@ -611,6 +614,7 @@ public class BackendMJ implements BackendBinSM {
     @Override
     public void enterProc(String label, int nParams, boolean main) {
         assignLabel(label);
+        procedureStack.push(label);
 
         if(main){
             startPC = currentCodeAddress;
@@ -624,12 +628,30 @@ public class BackendMJ implements BackendBinSM {
 
         //framesize s8 = 1 byte  parameter + local vars (right now there can be anything here and it will work)
         //todo +1 not hardcoded -> count local vars!?!
-        code.add(new Command(nParams+1));
+        code.add(new Command(label+"_framesize", 1));
+        procedureFrameSizes.put(procedureStack.peek(), nParams);
 
         currentCodeAddress = currentCodeAddress + 3;
         //so you dont override the parameter?!
         currentStackAddress = nParams;
     }
+
+
+
+    @Override
+    public int allocStack(int words) {
+        int addr =  currentStackAddress;
+        //needed??
+        currentStackAddress = currentStackAddress+words;
+
+        //keep track of framesizes
+        String proc = procedureStack.peek();
+        int currentFramesize = procedureFrameSizes.get(proc);
+        procedureFrameSizes.put(proc, currentFramesize+words);
+
+        return addr;
+    }
+
 
     @Override
     public void exitProc(String label) {
@@ -641,7 +663,7 @@ public class BackendMJ implements BackendBinSM {
         //return
         code.add(new Command(0x2F));
         currentCodeAddress = currentCodeAddress + 2;
-
+        procedureStack.pop();
     }
 
     @Override

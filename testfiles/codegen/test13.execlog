@@ -1,1 +1,5 @@
--- error reading file C:\Users\demi-\Documents\AAU_MasterInfo\20SS\CompilerConstruction_PR\CA5\Compiler\testfiles\codegen/test13.mj
+--- Start test13 ---
+printInt: value = 10 (10 expected)
+printInt: value = 50 (50 expected)
+print3: value1 = 20, value2 = 51, bvalue = False (20, 51, False expected)
+--- End test13 ---

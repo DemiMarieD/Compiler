@@ -1,1 +1,3 @@
--- error reading file C:\Users\demi-\Documents\AAU_MasterInfo\20SS\CompilerConstruction_PR\CA5\Compiler\testfiles\codegen/test24.mj
+--- Start test24 ---
+
+-- exception at address 98: expression stack underflow

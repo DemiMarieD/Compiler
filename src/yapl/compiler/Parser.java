@@ -134,7 +134,7 @@ symboletable.openScope(true);
     jj_consume_token(0);
 }
 
-  static final public void ProcedureHead() throws ParseException, YAPLException {Token t, id; Type returntype; List<Type> parameters;
+  static final public void ProcedureHead() throws ParseException, YAPLException {Token t, id; Type returntype; List<Symbol> parameters;
 parameters = new ArrayList<>();
     jj_consume_token(PROCEDURE);
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -223,7 +223,7 @@ symboletable.checkProgramEnd(t);
           //close scope of program
           symboletable.closeScope();
           symboletable.closeScope();        // closes scope of predefined procedures
-     codegen.exitProc(s);
+          codegen.exitProc(s);
     jj_consume_token(DOT);
     jj_consume_token(0);
 }
@@ -818,7 +818,7 @@ List<Integer> kinds = Arrays.asList(Symbol.Procedure);
     }
     t = jj_consume_token(PAR_RIGHT);
 ProcedureType procedure = (ProcedureType) sym.getType();
-        List<Type> parameters = procedure.getParameters();
+        List<Symbol> parameters = procedure.getParameters();
 
         if(parameters.size() > arguments.size()){
             {if (true) throw new YAPLException(CompilerError.TooFewArgs, t, sym.getName());}
@@ -828,30 +828,34 @@ ProcedureType procedure = (ProcedureType) sym.getType();
             if(i >= parameters.size()){
                 {if (true) throw new YAPLException(CompilerError.ArgNotApplicable, t2, i+1, sym.getName());}
             }
-            Type paraType = parameters.get(i);
+            Type paraType = parameters.get(i).getType();
             Type argType = arguments.get(i).getType();
             if(!paraType.isCompatible(argType)){
                  {if (true) throw new YAPLException(CompilerError.ArgNotApplicable, t2, i+1, sym.getName());}
             }
         }
 
+        Attrib[] args = new Attrib[arguments.size()];
+        for(int i = 0; i < args.length; i++){
+            Attrib arg =  arguments.get(i);
+           // Attrib arg2 = new AttribImpl(parameters.get(i));
+            args[i] = arg;
+        }
+        //list of arguments(attr) needs to be an array
+        codegen.callProc(sym, args);
+
+        if(!(procedure.getReturnType() instanceof VoidType)){
+          // codegen.returnFromProc(sym, attr);
+        }
         //procedure calc -> returns new attr of type = returntype
         attr.setType(procedure.getReturnType());
         attr.setToken(t); // the closing )
 
-        Attrib[] args = new Attrib[arguments.size()];
-        for(int i = 0; i < args.length; i++){
-            args[i] = arguments.get(i);
-        }
-        //list of arguments(attr) needs to be an array
-        codegen.callProc(sym, args);
-       // codegen.returnFromProc(sym, attr); //todo
 
         {if ("" != null) return attr;}
     throw new Error("Missing return statement in function");
 }
 
-// int a = 5 + 2
   static final public void Assignment() throws ParseException, YAPLException {Token t; Attrib rValue, lValue; Type type;
     t = jj_consume_token(ident);
 List<Integer> kinds = Arrays.asList(Symbol.Variable, Symbol.Parameter);
@@ -967,6 +971,8 @@ s.setReturnSeen(true);
                 }
             }
         }
+        //todo whet when return early
+        codegen.returnFromProc(s, attr);
 }
 
   static final public void WriteStatement(Symbol s) throws ParseException, YAPLException {Token t;
@@ -1176,7 +1182,6 @@ varSymbols = new ArrayList<Symbol>();
       t = jj_consume_token(ident);
 // make symbol of kind variable with name <ident>
                 Symbol sym2 = symboletable.makeSymbol(t, Symbol.Variable, type);
-
                 codegen.allocVariable(sym2);
                 varSymbols.add(sym2);
     }
@@ -1257,19 +1262,20 @@ type.setFields(varSymbols);
     }
 }
 
-  static final public Type FormalParam() throws ParseException, YAPLException {Token t; Type type;
+  static final public Symbol FormalParam() throws ParseException, YAPLException {Token t; Type type; Symbol sym;
     type = Type();
     t = jj_consume_token(ident);
 // make symbol of kind parameter with name <ident>
-            symboletable.makeSymbol(t, Symbol.Parameter, type);
-            {if ("" != null) return type;}
+            sym = symboletable.makeSymbol(t, Symbol.Parameter, type);
+
+            {if ("" != null) return sym;}
     throw new Error("Missing return statement in function");
 }
 
-  static final public List<Type> FormalParamList() throws ParseException, YAPLException {List<Type> parameters; Type type;
-parameters = new ArrayList<Type>();
-    type = FormalParam();
-parameters.add(type);
+  static final public List<Symbol> FormalParamList() throws ParseException, YAPLException {List<Symbol> parameters; Symbol sym;
+parameters = new ArrayList<Symbol>();
+    sym = FormalParam();
+parameters.add(sym);
     label_14:
     while (true) {
       switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -1282,21 +1288,29 @@ parameters.add(type);
         break label_14;
       }
       jj_consume_token(COMMA);
-      type = FormalParam();
-parameters.add(type);
+      sym = FormalParam();
+parameters.add(sym);
     }
-{if ("" != null) return parameters;}
+for(int i = 0; i< parameters.size(); i++){
+           parameters.get(i).setOffset(i);
+        }
+        {if ("" != null) return parameters;}
     throw new Error("Missing return statement in function");
 }
 
-  static final public void Procedure() throws ParseException, YAPLException {Token t; Type type, procedureType; List<Type> parameters; Symbol s;
-parameters = new ArrayList<Type>();
+  static final public void Procedure() throws ParseException, YAPLException {Token t; Type type, procedureType; List<Symbol> parameters; Symbol s; String label;
+parameters = new ArrayList<Symbol>();
     jj_consume_token(PROCEDURE);
     type = ReturnType();
     t = jj_consume_token(ident);
-// make symbol of kind procedure with name <ident>
+//make lable and jump so that code will not be executed before its called.
+            label = codegen.newLabel();
+            codegen.jump(label);
+
+            // make symbol of kind procedure with name <ident>
             // scope of procedure is nested in the scope of the program (global)
-            s = symboletable.makeSymbol(t, Symbol.Procedure, null);      // public int write(){}                                                        // int a = write()
+            s = symboletable.makeSymbol(t, Symbol.Procedure, null);
+
             // open scope of procedure
             symboletable.openScopeWithParent(false, s);
     jj_consume_token(PAR_LEFT);
@@ -1312,19 +1326,24 @@ symboletable.openScope(false);
       jj_la1[42] = jj_gen;
       ;
     }
-procedureType = new ProcedureType(type, parameters); s.setType(procedureType);
+procedureType = new ProcedureType(type, parameters);
+                    s.setType(procedureType);
+                    codegen.enterProc(s);
     jj_consume_token(PAR_RIGHT);
-    t = Block(s);
+    //Start of Procedure Content
+        t = Block(s);
 ProcedureType proType = (ProcedureType) s.getType();
-                              // error if not a void and now return seen.
-                              if( (!(proType.getReturnType() instanceof VoidType)) && (!s.getReturnSeen())){
-                                  {if (true) throw new YAPLException(CompilerError.MissingReturn, t, s.getName());}
-                              }
+                      // error if not a void and now return seen.
+                      if( (!(proType.getReturnType() instanceof VoidType)) && (!s.getReturnSeen())){
+                          {if (true) throw new YAPLException(CompilerError.MissingReturn, t, s.getName());}
+                      }
 
-                            symboletable.closeScope();
+                    symboletable.closeScope();
     t = jj_consume_token(ident);
 symboletable.checkProcedureEnd(t);
             symboletable.closeScope();
+            codegen.exitProc(s);
+            codegen.assignLabel(label);
     jj_consume_token(SEMICOLON);
 }
 
@@ -1352,13 +1371,9 @@ symboletable.checkProcedureEnd(t);
     finally { jj_save(2, xla); }
   }
 
-  static private boolean jj_3R_16()
+  static private boolean jj_3_2()
  {
-    if (jj_scan_token(ident)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_18()) jj_scanpos = xsp;
-    if (jj_scan_token(ASSIGN)) return true;
+    if (jj_3R_16()) return true;
     return false;
   }
 
@@ -1368,28 +1383,9 @@ symboletable.checkProcedureEnd(t);
     return false;
   }
 
-  static private boolean jj_3_2()
- {
-    if (jj_3R_16()) return true;
-    return false;
-  }
-
   static private boolean jj_3_1()
  {
     if (jj_3R_15()) return true;
-    return false;
-  }
-
-  static private boolean jj_3R_15()
- {
-    if (jj_scan_token(ident)) return true;
-    if (jj_scan_token(PAR_LEFT)) return true;
-    return false;
-  }
-
-  static private boolean jj_3R_20()
- {
-    if (jj_scan_token(BRACKET_LEFT)) return true;
     return false;
   }
 
@@ -1397,6 +1393,13 @@ symboletable.checkProcedureEnd(t);
  {
     if (jj_scan_token(CONST)) return true;
     if (jj_scan_token(ident)) return true;
+    return false;
+  }
+
+  static private boolean jj_3R_15()
+ {
+    if (jj_scan_token(ident)) return true;
+    if (jj_scan_token(PAR_LEFT)) return true;
     return false;
   }
 
@@ -1409,6 +1412,22 @@ symboletable.checkProcedureEnd(t);
   static private boolean jj_3_3()
  {
     if (jj_3R_17()) return true;
+    return false;
+  }
+
+  static private boolean jj_3R_20()
+ {
+    if (jj_scan_token(BRACKET_LEFT)) return true;
+    return false;
+  }
+
+  static private boolean jj_3R_16()
+ {
+    if (jj_scan_token(ident)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_18()) jj_scanpos = xsp;
+    if (jj_scan_token(ASSIGN)) return true;
     return false;
   }
 
