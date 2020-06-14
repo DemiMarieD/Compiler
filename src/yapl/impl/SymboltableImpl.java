@@ -163,8 +163,6 @@ public class SymboltableImpl implements yapl.interfaces.Symboltable {
 
         Symbol excistingSymbole = currentScope.getSymbole(name);
         if(excistingSymbole != null) {
-            //todo if global check the whole scope?!? if global at to all scopes?!?
-
             //YAPLException (SymbolExists) if a symbol of the same name already exists in the current scope
             throw new YAPLException(CompilerError.SymbolExists, excistingSymbole);
 
@@ -194,7 +192,7 @@ public class SymboltableImpl implements yapl.interfaces.Symboltable {
             for(int i = scopeStack.size() - 1; i >= 0; --i) {
                 Scope scope = scopeStack.get(i);
                 Symbol s = scope.getSymbole(name);
-                if( s!= null ){     //todo && s.isGlobal() ?? put then I can't access parameter in block?!
+                if( s!= null ){
                     return s;
                 }
             }

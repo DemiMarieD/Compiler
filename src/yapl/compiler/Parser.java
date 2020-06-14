@@ -350,37 +350,41 @@ symboletable.checkProgramEnd(t);
     throw new Error("Missing return statement in function");
 }
 
-  static final public Attrib Selector(Attrib leftside) throws ParseException, YAPLException {Token t, t2; Attrib attr; Type type;
+  static final public Attrib Selector(Attrib leftside) throws ParseException, YAPLException {Token t, t2; Attrib attr, index; Type type;
+codegen.loadValue(leftside);
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case BRACKET_LEFT:{
       t = jj_consume_token(BRACKET_LEFT);
-      attr = Expr();
+      index = Expr();
       t2 = jj_consume_token(BRACKET_RIGHT);
 if( !(leftside.getType() instanceof ArrayType)){
                                     {if (true) throw new YAPLException(CompilerError.SelectorNotArray, t);} // [ is the token
                             }
-                            if (!(attr.getType() instanceof IntType)){
+                            if (!(index.getType() instanceof IntType)){
                                     {if (true) throw new YAPLException(CompilerError.BadArraySelector, t2);} // ] is the token
                             }
+
                             ArrayType array = (ArrayType) leftside.getType();
                             int dim = array.getDim();
                             if( dim < 1){
                                 {if (true) throw new YAPLException(CompilerError.BadArraySelector, t2);} // ] is the token
                             }
+
+                            // todo understand
+                            codegen.arrayOffset(leftside, index);
                             if(dim == 1){
                                 //  a[] // singel index expresion -> a.subarray() (type)
                                 type = array.getBase();
-                                attr = new AttribImpl(leftside.getKind(), type, attr.getToken()); //todo is kind right?
+                                attr = index;
+                                attr.setType(type);
 
                             }else{
                                 //  a[][][]  a.dim() = 3 //-> a.base() (type)
                                 type = array.getSubarray();
-                                attr = new AttribImpl(leftside.getKind(), type, attr.getToken()); //todo is kind right?
+                                attr = index;
+                                attr.setType(type);
 
                             }
-                                // todo understand
-                               //codegen.arrayOffset(leftside, attr);
-
       break;
       }
     case DOT:{
@@ -453,7 +457,8 @@ List<Integer> kinds = Arrays.asList(Symbol.Variable, Symbol.Parameter);
       jj_la1[12] = jj_gen;
       ;
     }
-attr = new yapl.impl.AttribImpl(Attrib.Constant, new IntType(length), t);
+attr = codegen.arrayLength(attr);
+        attr.setToken(t);
         {if ("" != null) return attr;}
     throw new Error("Missing return statement in function");
 }
@@ -466,7 +471,7 @@ attr = new yapl.impl.AttribImpl(Attrib.Constant, new IntType(length), t);
     case FALSE:
     case number:{
       attr = Literal();
-{if ("" != null) return attr;}
+codegen.loadValue(attr); {if ("" != null) return attr;}
       break;
       }
     case PAR_LEFT:{
@@ -485,6 +490,7 @@ attr = new yapl.impl.AttribImpl(Attrib.Constant, new IntType(length), t);
                             if(attr.getType() instanceof VoidType){
                                 {if (true) throw new YAPLException(CompilerError.ProcNotFuncExpr, attr.getToken(), attr.getName());}
                             }
+                            codegen.loadValue(attr);
                             {if ("" != null) return attr;}
       } else {
         switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
@@ -506,12 +512,12 @@ attr = new yapl.impl.AttribImpl(Attrib.Constant, new IntType(length), t);
             jj_la1[13] = jj_gen;
             ;
           }
-{if ("" != null) return attr;}
+codegen.loadValue(attr);  {if ("" != null) return attr;}
           break;
           }
         case SHARP:{
           attr = ArrayLen();
-{if ("" != null) return attr;}
+codegen.loadValue(attr);  {if ("" != null) return attr;}
           break;
           }
         default:
@@ -693,16 +699,15 @@ int dim = 0;
 if(! (dimAttr.getType() instanceof IntType)){
                                         {if (true) throw new YAPLException(CompilerError.BadArraySelector, t2);} // ] is token
                                     }
-                                    //todo understand
-                                    //codegen.storeArrayDim(0, dimAttr);
+                                    codegen.storeArrayDim(dim, dimAttr);
                                     dim++;
     }
 if(dim > 0){
             // Make ArrayType
             ArrayType A_type = new ArrayType(type, dim);
             //todo understand
-            //result = codegen.allocArray(A);
-            result = new yapl.impl.AttribImpl(Attrib.Constant, A_type, t);
+            result = codegen.allocArray(A_type);
+            result.setToken(t);
             {if ("" != null) return result;}
 
         }else{
@@ -710,7 +715,7 @@ if(dim > 0){
             if(!(type instanceof RecordType)){
                   {if (true) throw new YAPLException(CompilerError.InvalidNewType, t);}
             }
-            result = new yapl.impl.AttribImpl(Attrib.Constant, type, t);
+            result = new yapl.impl.AttribImpl(Attrib.RecordField, type, t);
             {if ("" != null) return result;}
         }
     throw new Error("Missing return statement in function");
@@ -881,13 +886,13 @@ void IfStatement(Symbol s) throws ParseException, YAPLException {Attrib cond; To
 if(!(cond.getType() instanceof BoolType)){
                             {if (true) throw new YAPLException(CompilerError.CondNotBool, cond.getToken());}
                         }
-                                // todo understand
-                         //String elseLabel = codegen.newLabel();
-                         //codegen.branchIfFalse(cond, elseLabel);
-
+                            String elseLabel = codegen.newLabel();
+                            codegen.branchIfFalse(cond, elseLabel);
     jj_consume_token(THEN);
     StatementList(s);
-
+String endLabel = codegen.newLabel();
+                                codegen.jump(endLabel);
+                                codegen.assignLabel(elseLabel);
     switch ((jj_ntk==-1)?jj_ntk_f():jj_ntk) {
     case ELSE:{
       jj_consume_token(ELSE);
@@ -899,23 +904,24 @@ if(!(cond.getType() instanceof BoolType)){
       ;
     }
     jj_consume_token(ENDIF);
-
+codegen.assignLabel(endLabel);
 }
 
   static final public void WhileStatement(Symbol s) throws ParseException, YAPLException {Attrib cond; Token t;
     t = jj_consume_token(WHILE);
-
+String loopLabel = codegen.newLabel();
+                    codegen.assignLabel(loopLabel);
     cond = Expr();
 if(!(cond.getType() instanceof BoolType)){
                          {if (true) throw new YAPLException(CompilerError.CondNotBool, cond.getToken());}
                     }
-                        //String endLabel = codegen.newLabel();
-                        //codegen.branchIfFalse(cond, endLabel);
-
+                        String endLabel = codegen.newLabel();
+                        codegen.branchIfFalse(cond, endLabel);
     jj_consume_token(DO);
     StatementList(s);
     jj_consume_token(ENDWHILE);
-
+codegen.jump(loopLabel);
+                                        codegen.assignLabel(endLabel);
 }
 
   static final public void ReturnStatement(Symbol s) throws ParseException, YAPLException {Attrib attr = null; Token t;
@@ -1170,6 +1176,7 @@ varSymbols = new ArrayList<Symbol>();
       t = jj_consume_token(ident);
 // make symbol of kind variable with name <ident>
                 Symbol sym2 = symboletable.makeSymbol(t, Symbol.Variable, type);
+
                 codegen.allocVariable(sym2);
                 varSymbols.add(sym2);
     }
@@ -1345,31 +1352,6 @@ symboletable.checkProcedureEnd(t);
     finally { jj_save(2, xla); }
   }
 
-  static private boolean jj_3R_18()
- {
-    if (jj_3R_19()) return true;
-    return false;
-  }
-
-  static private boolean jj_3R_17()
- {
-    if (jj_scan_token(CONST)) return true;
-    if (jj_scan_token(ident)) return true;
-    return false;
-  }
-
-  static private boolean jj_3_3()
- {
-    if (jj_3R_17()) return true;
-    return false;
-  }
-
-  static private boolean jj_3R_21()
- {
-    if (jj_scan_token(DOT)) return true;
-    return false;
-  }
-
   static private boolean jj_3R_16()
  {
     if (jj_scan_token(ident)) return true;
@@ -1377,6 +1359,12 @@ symboletable.checkProcedureEnd(t);
     xsp = jj_scanpos;
     if (jj_3R_18()) jj_scanpos = xsp;
     if (jj_scan_token(ASSIGN)) return true;
+    return false;
+  }
+
+  static private boolean jj_3R_21()
+ {
+    if (jj_scan_token(DOT)) return true;
     return false;
   }
 
@@ -1392,16 +1380,35 @@ symboletable.checkProcedureEnd(t);
     return false;
   }
 
+  static private boolean jj_3R_15()
+ {
+    if (jj_scan_token(ident)) return true;
+    if (jj_scan_token(PAR_LEFT)) return true;
+    return false;
+  }
+
   static private boolean jj_3R_20()
  {
     if (jj_scan_token(BRACKET_LEFT)) return true;
     return false;
   }
 
-  static private boolean jj_3R_15()
+  static private boolean jj_3R_17()
  {
+    if (jj_scan_token(CONST)) return true;
     if (jj_scan_token(ident)) return true;
-    if (jj_scan_token(PAR_LEFT)) return true;
+    return false;
+  }
+
+  static private boolean jj_3R_18()
+ {
+    if (jj_3R_19()) return true;
+    return false;
+  }
+
+  static private boolean jj_3_3()
+ {
+    if (jj_3R_17()) return true;
     return false;
   }
 

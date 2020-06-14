@@ -13,7 +13,7 @@ public class AttribImpl implements Attrib {
     private Boolean isConstant;
     private Boolean isReadonly;
     private Boolean isGlobal = false;
-    private int offset;
+    private int offset = -1;
     private byte register;
 
     private String name;
@@ -36,6 +36,7 @@ public class AttribImpl implements Attrib {
                 this.isConstant = false;
                 break;
             default:
+                this.isConstant = false;
                // throw new YAPLException(CompilerError.Internal, t);
         }
         this.type = symbol.getType();
@@ -50,7 +51,6 @@ public class AttribImpl implements Attrib {
         this.kind = kind;
         switch(kind){
             case Attrib.Constant:
-            case Symbol.Typename:
                 this.isConstant = false;
                 break;
             default:

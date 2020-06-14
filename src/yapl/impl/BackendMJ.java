@@ -31,13 +31,20 @@ public class BackendMJ implements BackendBinSM {
     List<Data> staticData = new ArrayList<>();
     // keeps track of how many words (= 4 bytes) have been written to the static Data section
     Integer currentDataAddress = 0;
+    //help array for allocating arrays assume max dim = 5
+    Integer addressHelpArray;
+    Integer arrayDimCounter = 0;
 
     //todo understand
     Integer currentStackAddress = 0; //changed on enter and needed for allocStack
     Integer framePointer = 0; //todo never changes (needed for offset calc)
 
+
     //Constructor for backend implementing predefined procedures
     public BackendMJ (){
+        //help array for allocating arrays assume max dim = 5
+        addressHelpArray = allocStaticData(5);
+
         //writeln()
         int addr = allocStringConstant("\n");
         enterProc("writeln", 0, false);
@@ -198,9 +205,9 @@ public class BackendMJ implements BackendBinSM {
     //each call creates one dimension/column with given lenght (dim) ?!??
     @Override
     public void storeArrayDim(int dim) {
-        //todo
-        //pop size from stack for dim
-        //store in array descriptor (?) -> just push again?
+        //storing the length of an array dimension in an auxiliary array descriptor (= addressHelpArray)
+        storeWord(MemoryRegion.STATIC, addressHelpArray+dim);
+        arrayDimCounter++;
     }
 
     //The lengths of the array dimensions must have been
@@ -208,6 +215,20 @@ public class BackendMJ implements BackendBinSM {
     //desired number of array dimensions is defined by the number of prior calls of storeArrayDim
     @Override
     public void allocArray() {
+        //todo for multiple dimensions
+        //load help array / auxiliary array descriptor
+       /* for (int i = 0; i < arrayDimCounter-1; i++) {
+            loadWord(MemoryRegion.STATIC, addressHelpArray + (i)); //load length of the dimension on the stack
+        }
+        //add all the lengths that have been just loaded to get the total size of the array
+        for (int i = 0; i < arrayDimCounter-2; i++) {
+            add();
+        }
+        arrayDimCounter = 0;*/
+
+        //for 1D array
+        loadWord(MemoryRegion.STATIC, addressHelpArray + 0);
+
         //newarray
         //allocate array with t0 elements of given type on the heap (type = 0: boolean, type ≠ 0: integer)
         code.add(new Command(0x20));

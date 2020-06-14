@@ -4,10 +4,7 @@ import com.sun.jdi.BooleanType;
 import org.w3c.dom.Attr;
 import yapl.impl.AttribImpl;
 import yapl.impl.BackendMJ;
-import yapl.interfaces.Attrib;
-import yapl.interfaces.CodeGen;
-import yapl.interfaces.MemoryRegion;
-import yapl.interfaces.Symbol;
+import yapl.interfaces.*;
 import yapl.lib.*;
 
 import java.io.IOException;
@@ -41,60 +38,89 @@ public class CodeGenImpl implements CodeGen {
             boolean b_val = ((BoolType) type).value;
             val = backend.boolValue(b_val);
         }
-        //todo other types?
         return val;
     }
 
     public void saveAt(Attrib attr){
-        int addr = attr.getOffset();
-        if(attr.getIsGlobal()){
-            backend.storeWord(MemoryRegion.STATIC, addr);
+        if(attr.getKind() == Attrib.ArrayElement) {
+            backend.storeArrayElement();
         }else{
-            backend.storeWord(MemoryRegion.STACK, addr);
+            int addr = attr.getOffset();
+            if (attr.getIsGlobal()) {
+                backend.storeWord(MemoryRegion.STATIC, addr);
+            } else {
+                backend.storeWord(MemoryRegion.STACK, addr);
+            }
         }
+
     }
 
     @Override
     public byte loadValue(Attrib attr) throws YAPLException {
-        if (attr.getKind() == Attrib.RegAddress || attr.getKind() == Attrib.Constant) {
-            //if global then it is saved in static data area
-            if (attr.getKind() == Attrib.Constant) {
-                if (attr.getIsGlobal()) {
-                    backend.loadWord(MemoryRegion.STATIC, attr.getOffset());
-                    //else we load Const to stack
-                } else {
-                    Type type = attr.getType();
-                    int val = getVal(type);
-                    backend.loadConst(val);
-                }
-            }else if (attr.getKind() == Attrib.RegAddress) {
-                if (attr.getIsGlobal()) {
-                    backend.loadWord(MemoryRegion.STATIC, attr.getOffset());
-                    //todo maybe something
-                } else {
-                    backend.loadWord(MemoryRegion.STACK, attr.getOffset());
-                    //todo maybe something
-                }
+          //  int addr = backend.allocStack(1);
 
+            //if global then it is saved in static data area
+            switch (attr.getKind()){
+                //Variables and Type names are constant
+                case Attrib.Constant:
+                    if(attr.getOffset() < 0){
+                        //if we don't have an offset it is most likely a number not a var to load
+                        Type type = attr.getType();
+                        int val = getVal(type);
+                        backend.loadConst(val);
+
+                    }else if (attr.getIsGlobal()) {
+                        backend.loadWord(MemoryRegion.STATIC, attr.getOffset());
+                        //else we load Const to stack
+                    } else {
+                        backend.loadWord(MemoryRegion.STACK, attr.getOffset());
+                    }
+                    break;
+
+                //Symbols of kind Constant are attributes of type regAddress
+                case Attrib.RegAddress:
+                    if (attr.getIsGlobal()) {
+                        backend.loadWord(MemoryRegion.STATIC, attr.getOffset());
+                    } else {
+                        backend.loadWord(MemoryRegion.STACK, attr.getOffset());
+                    }
+                    break;
+
+                case Attrib.ArrayElement:
+                    // both base address and index should reside in registers already?!
+                    // -> base addr and index value should be on the stack ?!
+                    backend.loadArrayElement();
+                    break;
+
+                case Attrib.MemoryOperand:
+                    //backend.loadWord(MemoryRegion.STACK, attr.getOffset());
+                    break;
+
+                case Attrib.RecordField:
+                    break;
+
+                case Attrib.RegValue:
+                    //do nothing, value is already on the execution stack
+                    break;
             }
 
-            //Now that the attribute is on the stack the kind can be changed
+            //Now that the attribute value is on the stack the kind can be changed
             attr.setKind(Attrib.RegValue);
+          //  attr.setOffset(addr);
 
-        }
-         /* else if (attr.getKind() == Attrib.MemoryOperand) {
-                //todo heap
-            }*/
-
-        //else if RegValue it is already on the stack
-
+        //todo return & save current sp (stack pointer) ?!
         return 0;
     }
 
     @Override
     public byte loadAddress(Attrib attr) throws YAPLException {
+        switch (attr.getKind()){
 
 
+        }
+        //Now that the attribute address is on the stack the kind can be changed
+        attr.setKind(Attrib.RegAddress);
+        //todo return & save current sp (stack pointer) ?!
         return 0;
     }
 
@@ -106,35 +132,29 @@ public class CodeGenImpl implements CodeGen {
     @Override
     public void allocVariable(Symbol sym) throws YAPLException {
         int addr = -1;
-        if(sym.isGlobal()){
-            //make room on static data area
-            addr = backend.allocStaticData(1);
-            sym.setOffset(addr);
-            //If we have a constant decl we need a value (that will not change)
-            if(sym.getKind() == Symbol.Constant){
-                Type type = sym.getType();
-                int val = getVal(type);
-                //loads to expression stack
-                backend.loadConst(val);
-                //stores top from expression stack in static area at address of Offset
-                backend.storeWord(MemoryRegion.STATIC, sym.getOffset());
-            }
-            //todo else?
+
+        //make room on static data area
+        if(sym.isGlobal()){ addr = backend.allocStaticData(1);
 
         //if not global on stack?!
-        }else{
-            addr = backend.allocStack(1);
-            sym.setOffset(addr);
-            //If we have a constant decl we need a value (that will not change)
-            if(sym.getKind() == Symbol.Constant){
-                Type type = sym.getType();
-                int val = getVal(type);
-                //loads to expression stack
-                backend.loadConst(val);
+        }else{ addr = backend.allocStack(1); }
+
+        sym.setOffset(addr);
+
+        //If we have a constant decl we need a value (that will not change)
+        if(sym.getKind() == Symbol.Constant){
+            Type type = sym.getType();
+            int val = getVal(type);
+            //loads to expression stack
+            backend.loadConst(val);
+
+            if(sym.isGlobal()) {
+                //stores top from expression stack in static area at address of Offset
+                backend.storeWord(MemoryRegion.STATIC, sym.getOffset());
+            }else{
                 //stores top from expression stack in stack at address of Offset
                 backend.storeWord(MemoryRegion.STACK, sym.getOffset());
             }
-            //todo else?
         }
 
     }
@@ -146,12 +166,24 @@ public class CodeGenImpl implements CodeGen {
 
     @Override
     public void storeArrayDim(int dim, Attrib length) throws YAPLException {
-
+        // in the backend our help array is of size 5 => max dim = 5
+        if(dim < 6) {
+            loadValue(length);
+            backend.storeArrayDim(dim);
+        }else{
+            throw new YAPLException(CompilerError.TooManyDims);
+        }
     }
 
     @Override
     public Attrib allocArray(ArrayType arrayType) throws YAPLException {
-       return null;
+        backend.allocArray(); //The array start address is returned on the expression stack at run-time.
+
+        //attribute representing a register operand holding the array base address
+        // kind is regVal because the address is already on the stack.
+        Attrib attrib = new AttribImpl(Attrib.RegValue, arrayType, Token.newToken(0)); //token will be overwritten in parser
+
+       return attrib;
     }
 
     @Override
@@ -166,6 +198,21 @@ public class CodeGenImpl implements CodeGen {
 
     @Override
     public void arrayOffset(Attrib arr, Attrib index) throws YAPLException {
+        // arr = representing the array base address;
+        loadValue(arr);
+
+            //todo incase of subarray?!?
+       /* if (arr.getKind() == Attrib.ArrayElement) {
+            //loadVal(arr.getIndex());
+            //backend.loadArrayElement();
+        } */
+
+        loadValue(index);
+
+        // kind, type, reg should be updated -> ArrayElement
+        // for ArrayElements, both base address and index must reside in registers!
+        index.setKind(Attrib.ArrayElement);
+        // arr.setType(arrtype.getBase()); //this is done in the parser !!
 
     }
 
@@ -176,7 +223,11 @@ public class CodeGenImpl implements CodeGen {
 
     @Override
     public Attrib arrayLength(Attrib arr) throws YAPLException {
-        return null;
+        loadValue(arr); // arr represents an address operand, so load its value!
+        backend.arrayLength();
+        arr.setType(new IntType());
+        arr.setKind(Attrib.RegValue);
+        return arr;
     }
 
     @Override
@@ -343,7 +394,7 @@ public class CodeGenImpl implements CodeGen {
     public void branchIfFalse(Attrib condition, String label) throws YAPLException {
         Boolean value = ((BoolType) condition.getType()).value;
         backend.branchIf(value, label);
-        freeReg(condition);
+       // freeReg(condition);
     }
 
     @Override

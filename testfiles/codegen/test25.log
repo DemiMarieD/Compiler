@@ -1,0 +1,2 @@
+YAPL compilation: [test25] ERROR 22 (line 36, column 15)
+expression after ’#’ is not an array type

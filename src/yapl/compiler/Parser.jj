@@ -311,38 +311,43 @@ Attrib Literal (): { Token tok; }
 }
 
 
-Attrib Selector (Attrib leftside) throws YAPLException: { Token t, t2; Attrib attr; Type type;}
+Attrib Selector (Attrib leftside) throws YAPLException: { Token t, t2; Attrib attr, index; Type type;}
 {
-    // ( x | y ) selector
+    //load value of the left side to the stack so index expr etc. will be loaded on top
+    {codegen.loadValue(leftside);}
     // Array Selector array[index][]
-    ( t = <BRACKET_LEFT> attr = Expr() t2 = <BRACKET_RIGHT>{
+    ( t = <BRACKET_LEFT> index = Expr() t2 = <BRACKET_RIGHT>{
 
                             if( !(leftside.getType() instanceof ArrayType)){
                                     throw new YAPLException(CompilerError.SelectorNotArray, t); // [ is the token
                             }
-                            if (!(attr.getType() instanceof IntType)){
+                            if (!(index.getType() instanceof IntType)){
                                     throw new YAPLException(CompilerError.BadArraySelector, t2); // ] is the token
                             }
+
                             ArrayType array = (ArrayType) leftside.getType();
                             int dim = array.getDim();
                             if( dim < 1){
                                 throw new YAPLException(CompilerError.BadArraySelector, t2); // ] is the token
                             }
+
+                            // todo understand
+                            codegen.arrayOffset(leftside, index);
                             if(dim == 1){
                                 //  a[] // singel index expresion -> a.subarray() (type)
                                 type = array.getBase();
-                                attr = new AttribImpl(leftside.getKind(), type, attr.getToken()); //todo is kind right?
+                                attr = index;
+                                attr.setType(type);
 
                             }else{
                                 //  a[][][]  a.dim() = 3 //-> a.base() (type)
                                 type = array.getSubarray();
-                                attr = new AttribImpl(leftside.getKind(), type, attr.getToken()); //todo is kind right?
+                                attr = index;
+                                attr.setType(type);
 
                             }
-                                // todo understand
-                               //codegen.arrayOffset(leftside, attr);
 
-                            }
+                         }
 
      // Record Selector recordtype.fieldname
      | t2 = <DOT> t = <ident> {
@@ -395,7 +400,8 @@ Attrib ArrayLen () throws YAPLException: { Token t, t2; Symbol sym; Attrib attr;
              }
         ]
      {
-        attr = new yapl.impl.AttribImpl(Attrib.Constant, new IntType(length), t);
+        attr = codegen.arrayLength(attr);
+        attr.setToken(t);
         return attr;
      }
 }
@@ -407,7 +413,7 @@ Attrib ArrayLen () throws YAPLException: { Token t, t2; Symbol sym; Attrib attr;
 Attrib PrimaryExpr () throws YAPLException: { Token t; Attrib attr; ProcedureType procedureType; Type type; Type returnType;}
 {
 
-      attr = Literal() { return attr;}
+      attr = Literal() { codegen.loadValue(attr); return attr;}
       | <PAR_LEFT> attr = Expr() <PAR_RIGHT> { return attr;}
 
       | LOOKAHEAD(2) attr = ProcedureCall() {
@@ -416,6 +422,7 @@ Attrib PrimaryExpr () throws YAPLException: { Token t; Attrib attr; ProcedureTyp
                             if(attr.getType() instanceof VoidType){
                                 throw new YAPLException(CompilerError.ProcNotFuncExpr, attr.getToken(), attr.getName());
                             }
+                            codegen.loadValue(attr);
                             return attr;
                         }
 
@@ -428,9 +435,9 @@ Attrib PrimaryExpr () throws YAPLException: { Token t; Attrib attr; ProcedureTyp
               attr = new yapl.impl.AttribImpl(sym, t);
             }
              [ attr = Selector(attr)  ]
-             { return attr; }
+             { codegen.loadValue(attr);  return attr; }
 
-      | attr = ArrayLen() {return attr;}
+      | attr = ArrayLen() { codegen.loadValue(attr);  return attr;}
 }
 
 // Here we have calculations so we use codgen class to calc the attribute values
@@ -519,16 +526,16 @@ Attrib CreationExpr () throws YAPLException: { Type type; Attrib result, dimAttr
                                     if(! (dimAttr.getType() instanceof IntType)){
                                         throw new YAPLException(CompilerError.BadArraySelector, t2); // ] is token
                                     }
-                                    //todo understand
-                                    //codegen.storeArrayDim(0, dimAttr);
-                                    dim++; } )*
+                                    codegen.storeArrayDim(dim, dimAttr);
+                                    dim++;
+                                    } )*
 	{
         if(dim > 0){
             // Make ArrayType
             ArrayType A_type = new ArrayType(type, dim);
             //todo understand
-            //result = codegen.allocArray(A);
-            result = new yapl.impl.AttribImpl(Attrib.Constant, A_type, t);
+            result = codegen.allocArray(A_type);
+            result.setToken(t);
             return result;
 
         }else{
@@ -536,7 +543,7 @@ Attrib CreationExpr () throws YAPLException: { Type type; Attrib result, dimAttr
             if(!(type instanceof RecordType)){
                   throw new YAPLException(CompilerError.InvalidNewType, t);
             }
-            result = new yapl.impl.AttribImpl(Attrib.Constant, type, t);
+            result = new yapl.impl.AttribImpl(Attrib.RecordField, type, t);
             return result;
         }
 
@@ -611,7 +618,7 @@ Attrib ProcedureCall () throws YAPLException: { Token t; Attrib attr; Symbol sym
         }
         //list of arguments(attr) needs to be an array
         codegen.callProc(sym, args);
-       // codegen.returnFromProc(sym, attr); //todo
+        // codegen.returnFromProc(sym, attr);
 
         return attr;} // readInt() -> int
 }
@@ -650,36 +657,34 @@ void IfStatement (Symbol s) throws YAPLException: { Attrib cond; Token t;}
                         if(!(cond.getType() instanceof BoolType)){
                             throw new YAPLException(CompilerError.CondNotBool, cond.getToken());
                         }
-                                // todo understand
-                         //String elseLabel = codegen.newLabel();
-                         //codegen.branchIfFalse(cond, elseLabel);
+                            String elseLabel = codegen.newLabel();
+                            codegen.branchIfFalse(cond, elseLabel);
                          }
 
 	<THEN> StatementList(s) {
-                          //  String endLabel = codegen.newLabel();
-                          //  codegen.jump(endLabel);
-                          //  codegen.assignLabel(elseLabel);
+                                String endLabel = codegen.newLabel();
+                                codegen.jump(endLabel);
+                                codegen.assignLabel(elseLabel);
                             }
 	[ <ELSE> StatementList(s) ]
-	<ENDIF> { //codegen.assignLabel(endLabel);
-                        }
+	<ENDIF> { codegen.assignLabel(endLabel); }
 }
 
 void WhileStatement (Symbol s) throws YAPLException: { Attrib cond; Token t;}
 {
 
-	t = <WHILE> {	//String loopLabel = codegen.newLabel();
-            	 //codegen.assignLabel(loopLabel);
+	t = <WHILE> {	String loopLabel = codegen.newLabel();
+            	    codegen.assignLabel(loopLabel);
             	 }
     cond = Expr() {
 	                if(!(cond.getType() instanceof BoolType)){
                          throw new YAPLException(CompilerError.CondNotBool, cond.getToken());
                     }
-	                //String endLabel = codegen.newLabel();
-                  	//codegen.branchIfFalse(cond, endLabel);
+	                String endLabel = codegen.newLabel();
+                  	codegen.branchIfFalse(cond, endLabel);
                   	}
-    <DO> StatementList(s) <ENDWHILE> { 	//codegen.jump(loopLabel);
-                                    	//codegen.assignLabel(endLabel);
+    <DO> StatementList(s) <ENDWHILE> { 	codegen.jump(loopLabel);
+                                    	codegen.assignLabel(endLabel);
                                     	}
 }
 
@@ -765,7 +770,9 @@ Type Type() throws YAPLException: { Type base_type; int counter;}
 	{counter = 0;}
 	base_type = NonArrayType() //int -> base type
 	//if brackets we have an array need to count the dim
-	( <BRACKET_LEFT> <BRACKET_RIGHT> {counter++;} )* //count -> dim
+	( <BRACKET_LEFT> <BRACKET_RIGHT> {
+                counter++;
+               } )* //count -> dim
 	{
 	    if (counter > 0){
 	        Type type = new ArrayType(base_type, counter);
@@ -814,6 +821,7 @@ List<Symbol> VarDecl () throws YAPLException: { Token t; Type type; List<Symbol>
 	        (t = <ident>){
                 // make symbol of kind variable with name <ident>
                 Symbol sym2 = symboletable.makeSymbol(t, Symbol.Variable, type);
+
                 codegen.allocVariable(sym2);
                 varSymbols.add(sym2);
             }
