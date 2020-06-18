@@ -305,7 +305,7 @@ Token MulOp (): {Token t;}
 //** **//
 Attrib Literal (): { Token tok; }
 {
-     tok = <TRUE> { return new yapl.impl.AttribImpl(Attrib.Constant, new BoolType(true), tok); }     //Atrribute gets kind and type
+     tok = <TRUE> { return new yapl.impl.AttribImpl(Attrib.Constant, new BoolType(true), tok); }                            //Atrribute gets kind and type
      | tok = <FALSE> { return new yapl.impl.AttribImpl(Attrib.Constant, new BoolType(false), tok); }
      | tok = <number> { return new yapl.impl.AttribImpl(Attrib.Constant, new IntType(Integer.parseInt(tok.image)), tok); }
 }
@@ -344,7 +344,6 @@ Attrib Selector (Attrib leftside) throws YAPLException: { Token t, t2; Attrib at
                                 type = array.getSubarray();
                                 attr = index;
                                 attr.setType(type);
-
                             }
 
                          }

@@ -383,7 +383,6 @@ if( !(leftside.getType() instanceof ArrayType)){
                                 type = array.getSubarray();
                                 attr = index;
                                 attr.setType(type);
-
                             }
       break;
       }
@@ -1421,16 +1420,6 @@ symboletable.checkProcedureEnd(t);
     return false;
   }
 
-  static private boolean jj_3R_16()
- {
-    if (jj_scan_token(ident)) return true;
-    Token xsp;
-    xsp = jj_scanpos;
-    if (jj_3R_18()) jj_scanpos = xsp;
-    if (jj_scan_token(ASSIGN)) return true;
-    return false;
-  }
-
   static private boolean jj_3R_19()
  {
     Token xsp;
@@ -1438,6 +1427,16 @@ symboletable.checkProcedureEnd(t);
     if (!jj_3R_20()) return false;
     jj_scanpos = xsp;
     if (jj_3R_21()) return true;
+    return false;
+  }
+
+  static private boolean jj_3R_16()
+ {
+    if (jj_scan_token(ident)) return true;
+    Token xsp;
+    xsp = jj_scanpos;
+    if (jj_3R_18()) jj_scanpos = xsp;
+    if (jj_scan_token(ASSIGN)) return true;
     return false;
   }
 

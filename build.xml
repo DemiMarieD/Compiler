@@ -20,7 +20,7 @@ User-relevant properties: (customize to your environment)
 	<property name="ant-contrib" location="lib/ant-contrib.jar"/> <!-- Adapted -->
     <property name="mj-jar" location="mjvm/mj.jar"/>
 	<property name="version" value="codegen"/>
-    <property name="yapl_2" value="testfiles/${version}/test15"/>
+    <property name="yapl_2" value="testfiles/${version}/test20"/>
 	<property name="yapl" location="${yapl_2}.yapl"/>
 
     <property name="outfile" value="${yapl_2}.mj"/>

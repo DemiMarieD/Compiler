@@ -136,7 +136,7 @@ public class CodeGenImpl implements CodeGen {
         //make room on static data area
         if(sym.isGlobal()){ addr = backend.allocStaticData(1);
 
-        //if not global on stack?!
+        //if not global on stack
         }else{ addr = backend.allocStack(1); }
 
         sym.setOffset(addr);
@@ -203,11 +203,11 @@ public class CodeGenImpl implements CodeGen {
         // arr = representing the array base address;
         loadValue(arr);
 
-            //todo incase of subarray?!?
-       /* if (arr.getKind() == Attrib.ArrayElement) {
+        //
+       if (arr.getKind() == Attrib.ArrayElement) {
             //loadVal(arr.getIndex());
-            //backend.loadArrayElement();
-        } */
+            backend.loadArrayElement();
+        }
 
         loadValue(index);
 

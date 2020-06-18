@@ -33,7 +33,8 @@ public class BackendMJ implements BackendBinSM {
     //help array for allocating arrays assume max dim = 5
     Integer addressHelpArray;
     Integer arrayDimCounter = 0;
-
+    //for multi dim arrays
+    Integer labelWhile = 0;
 
 
     //todo understand
@@ -219,7 +220,7 @@ public class BackendMJ implements BackendBinSM {
     public void allocArray() {
         //todo for multiple dimensions
         //load help array / auxiliary array descriptor
-        for (int i = 0; i < arrayDimCounter-1; i++) {
+        /*for (int i = 0; i < arrayDimCounter-1; i++) {
             //todo allocArray(..)
             loadWord(MemoryRegion.STATIC, addressHelpArray + (i)); //load length of the dimension on the stack
         }
@@ -227,10 +228,10 @@ public class BackendMJ implements BackendBinSM {
         for (int i = 0; i < arrayDimCounter-2; i++) {
             add();
         }
-        arrayDimCounter = 0;
+        arrayDimCounter = 0;*/
 
         //for 1D array
-        //loadWord(MemoryRegion.STATIC, addressHelpArray + 0);
+        loadWord(MemoryRegion.STATIC, addressHelpArray + 0);
 
         //newarray
         //allocate array with t0 elements of given type on the heap (type = 0: boolean, type ≠ 0: integer)
@@ -238,6 +239,79 @@ public class BackendMJ implements BackendBinSM {
         //s8 type
         code.add(new Command(0x01)); //type int (function description)
         currentCodeAddress = currentCodeAddress+2;
+
+        arrayDimCounter--;
+
+        if(arrayDimCounter > 0){
+            //save start addr
+            int startAdr = allocStack(1);
+            storeWord(MemoryRegion.STACK, startAdr);
+
+            //index in 1D
+            int index = allocStack(1);
+            loadConst(0);
+            storeWord(MemoryRegion.STACK, index);
+
+            //while start -------------------------------------------------------------
+            String beginWhile_lable = "whileA_" + labelWhile;
+            String endWhile_lable = "endwhileA_" + labelWhile;
+
+            assignLabel(beginWhile_lable);
+
+            //load len first dim
+            loadWord(MemoryRegion.STATIC, addressHelpArray + 0);
+
+            // 0
+            loadConst(0);
+
+            isGreater();
+
+            //if greater (1)
+            branchIf(false, endWhile_lable);
+
+            //load start addr of Array
+            loadWord(MemoryRegion.STACK, startAdr);
+            //load index
+            loadWord(MemoryRegion.STACK, index);
+            //load len second dim
+            loadWord(MemoryRegion.STATIC, addressHelpArray + 1);
+
+            //*** newarray ****
+            //allocate array with t0 elements of given type on the heap (type = 0: boolean, type ≠ 0: integer)
+            code.add(new Command(0x20));
+            //s8 type
+            code.add(new Command(0x01)); //type int (function description)
+            currentCodeAddress = currentCodeAddress+2;
+            //*******
+
+            //assign start addr of new array to current index a[i] = addr
+            storeArrayElement();
+
+            //load len first dim
+            loadWord(MemoryRegion.STATIC, addressHelpArray + 0);
+            //minus 1
+            loadConst(1);
+            sub();
+            // save new lenght
+            storeWord(MemoryRegion.STATIC, addressHelpArray + 0);
+
+            //update index
+            loadWord(MemoryRegion.STACK, index);
+            loadConst(1);
+            add();
+            storeWord(MemoryRegion.STACK, index);
+
+            //jump
+            jump(beginWhile_lable);
+
+            //while end
+            assignLabel(endWhile_lable);
+
+            //-------------------------------------------------------------
+
+            labelWhile++;
+            loadWord(MemoryRegion.STACK, startAdr);
+        }
     }
 
     @Override
@@ -627,7 +701,6 @@ public class BackendMJ implements BackendBinSM {
         code.add(new Command(nParams));
 
         //framesize s8 = 1 byte  parameter + local vars (right now there can be anything here and it will work)
-        //todo +1 not hardcoded -> count local vars!?!
         code.add(new Command(label+"_framesize", 1));
         procedureFrameSizes.put(procedureStack.peek(), nParams);
 
